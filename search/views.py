@@ -13,9 +13,16 @@ from django.views.decorators.http import require_POST
 from eventtracking import tracker as track
 from .api import QueryParseError, perform_search, course_discovery_search, course_discovery_filter_fields
 from .initializer import SearchInitializer
+from openedx.features.courses_programs_search import views as courses_programs_views
+from openedx.core.djangoapps.catalog.utils import create_catalog_api_client
+from openedx.core.djangoapps.catalog.models import CatalogIntegration
+from django.contrib.auth import get_user_model
+
+
 
 # log appears to be standard name used for logger
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+User = get_user_model()  # pylint: disable=invalid-name
 
 
 def _process_pagination_values(request):
@@ -45,7 +52,7 @@ def _process_field_values(request):
     }
 
 
-@require_POST
+# @require_POST 
 def do_search(request, course_id=None):
     """
     Search view for http requests
@@ -81,71 +88,73 @@ def do_search(request, course_id=None):
 
     search_term = request.POST.get("search_string", None)
 
-    try:
-        if not search_term:
-            raise ValueError(_('No search term provided for search'))
+    if request.method == "GET":
+        return courses_programs_views.index(request)
+    else:
+        try:
+            if not search_term:
+                raise ValueError(_('No search term provided for search'))
 
-        size, from_, page = _process_pagination_values(request)
+            size, from_, page = _process_pagination_values(request)
+            # Analytics - log search request
+            track.emit(
+                'edx.course.search.initiated',
+                {
+                    "search_term": search_term,
+                    "page_size": size,
+                    "page_number": page,
+                }
+            )
 
-        # Analytics - log search request
-        track.emit(
-            'edx.course.search.initiated',
-            {
-                "search_term": search_term,
-                "page_size": size,
-                "page_number": page,
+            results = perform_search(
+                search_term,
+                user=request.user,
+                size=size,
+                from_=from_,
+                course_id=course_id
+            )
+
+            status_code = 200
+
+            # Analytics - log search results before sending to browser
+            track.emit(
+                'edx.course.search.results_displayed',
+                {
+                    "search_term": search_term,
+                    "page_size": size,
+                    "page_number": page,
+                    "results_count": results["total"],
+                }
+            )
+
+        except ValueError as invalid_err:
+            results = {
+                "error": unicode(invalid_err)
             }
-        )
+            log.debug(unicode(invalid_err))
 
-        results = perform_search(
-            search_term,
-            user=request.user,
-            size=size,
-            from_=from_,
-            course_id=course_id
-        )
-
-        status_code = 200
-
-        # Analytics - log search results before sending to browser
-        track.emit(
-            'edx.course.search.results_displayed',
-            {
-                "search_term": search_term,
-                "page_size": size,
-                "page_number": page,
-                "results_count": results["total"],
+        except QueryParseError:
+            results = {
+                "error": _('Your query seems malformed. Check for unmatched quotes.')
             }
+
+        # Allow for broad exceptions here - this is an entry point from external reference
+        except Exception as err:  # pylint: disable=broad-except
+            results = {
+                "error": _('An error occurred when searching for "{search_string}"').format(search_string=search_term)
+            }
+            log.exception(
+                'Search view exception when searching for %s for user %s: %r',
+                search_term,
+                request.user.id,
+                err
+            )
+
+        return HttpResponse(
+            json.dumps(results, cls=DjangoJSONEncoder),
+            content_type='application/json',
+            status=status_code
         )
-
-    except ValueError as invalid_err:
-        results = {
-            "error": unicode(invalid_err)
-        }
-        log.debug(unicode(invalid_err))
-
-    except QueryParseError:
-        results = {
-            "error": _('Your query seems malformed. Check for unmatched quotes.')
-        }
-
-    # Allow for broad exceptions here - this is an entry point from external reference
-    except Exception as err:  # pylint: disable=broad-except
-        results = {
-            "error": _('An error occurred when searching for "{search_string}"').format(search_string=search_term)
-        }
-        log.exception(
-            'Search view exception when searching for %s for user %s: %r',
-            search_term,
-            request.user.id,
-            err
-        )
-
-    return HttpResponse(
-        json.dumps(results, cls=DjangoJSONEncoder),
-        content_type='application/json',
-        status=status_code
-    )
 
 
 @require_POST
@@ -235,9 +244,35 @@ def course_discovery(request):
             request.user.id,
             err
         )
-
+   
     return HttpResponse(
         json.dumps(results, cls=DjangoJSONEncoder),
         content_type='application/json',
         status=status_code
+    )
+
+
+def program_discovery(request):
+    """
+    Search Programs lists
+    """
+    results = {
+        "error": _("Nothing to search")
+    }
+    status_code = 500
+    try:
+        catalog_integration = CatalogIntegration.current()
+        username = catalog_integration.service_username
+        user = User.objects.get(username=username)
+        client = create_catalog_api_client(user, site=None)
+        programs = client.programs().get()
+        results = programs['results']
+    except User.DoesNotExist:
+        logger.exception(
+            'Failed to create API client. Service user {username} does not exist.'.format(username=username)
+        )
+    return HttpResponse(
+        json.dumps(results, cls=DjangoJSONEncoder),
+        content_type='application/json',
+        status=200
     )
