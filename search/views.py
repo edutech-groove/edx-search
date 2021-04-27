@@ -3,6 +3,7 @@
 # pylint: disable=too-few-public-methods
 import logging
 import json
+import copy
 
 from django.conf import settings
 from django.core.serializers.json import DjangoJSONEncoder
@@ -260,6 +261,21 @@ def program_discovery(request):
         "error": _("Nothing to search")
     }
     status_code = 500
+    data_templates = {
+        "modes": [],
+        "language": "en",
+        "course": "",
+        "number": "",
+        "content": {
+            "display_name": "No data",
+        },
+        "start": "",
+        "image_url": "",
+        "org": "",
+        "id": "",
+        "programtype": "",
+        "course_count": "",
+    }
     try:
         catalog_integration = CatalogIntegration.current()
         username = catalog_integration.service_username
@@ -267,12 +283,27 @@ def program_discovery(request):
         client = create_catalog_api_client(user, site=None)
         programs = client.programs().get()
         results = programs['results']
+        data = []
+        for resutl in results:
+            record = copy.deepcopy(dict(resutl))
+            temp = copy.deepcopy(data_templates)
+            if record['status'] == 'active':
+                temp['course'] = record['title']
+                if record['banner_image']:
+                    temp['image_url'] = record['banner_image']['large']['url']
+                if record['authoring_organizations']:
+                    temp['org'] = record['authoring_organizations'][0]['name']
+                temp['content']['display_name'] = record['title']
+                temp['id'] = record['uuid']
+                temp['programtype'] = record['type']
+                temp['course_count'] = len(record['courses'])
+                data.append(temp)
     except User.DoesNotExist:
         logger.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
         )
     return HttpResponse(
-        json.dumps(results, cls=DjangoJSONEncoder),
+        json.dumps(data, cls=DjangoJSONEncoder),
         content_type='application/json',
         status=200
     )
