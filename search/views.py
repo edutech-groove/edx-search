@@ -17,6 +17,7 @@ from .initializer import SearchInitializer
 from openedx.features.courses_programs_search import views as courses_programs_views
 from openedx.core.djangoapps.catalog.utils import create_catalog_api_client
 from openedx.core.djangoapps.catalog.models import CatalogIntegration
+from openedx.core.lib.edx_api_utils import get_edx_api_data
 from django.contrib.auth import get_user_model
 
 
@@ -253,6 +254,7 @@ def course_discovery(request):
     )
 
 
+@require_POST
 def program_discovery(request):
     """
     Search Programs lists
@@ -260,7 +262,6 @@ def program_discovery(request):
     results = {
         "error": _("Nothing to search")
     }
-    status_code = 500
     data_templates = {
         "modes": [],
         "language": "en",
@@ -275,17 +276,30 @@ def program_discovery(request):
         "id": "",
         "programtype": "",
         "course_count": "",
+        "count": "",
     }
     try:
+        size, from_, page = _process_pagination_values(request)
+        if page == 0: 
+            page = 1
+        else:
+            page = page + 1
         catalog_integration = CatalogIntegration.current()
         username = catalog_integration.service_username
         user = User.objects.get(username=username)
-        client = create_catalog_api_client(user, site=None)
-        programs = client.programs().get()
-        results = programs['results']
+        api = create_catalog_api_client(user, site=None)
+        programs = get_edx_api_data(
+            catalog_integration, 'programs', api=api,
+            querystring={
+                "page": page,
+                "page_size": size,
+            }, traverse_pagination=False
+        )
+        count = programs['count']
+        programs = programs['results']
         data = []
-        for resutl in results:
-            record = copy.deepcopy(dict(resutl))
+        for program in programs:
+            record = copy.deepcopy(dict(program))
             temp = copy.deepcopy(data_templates)
             if record['status'] == 'active':
                 temp['course'] = record['title']
@@ -297,6 +311,7 @@ def program_discovery(request):
                 temp['id'] = record['uuid']
                 temp['programtype'] = record['type']
                 temp['course_count'] = len(record['courses'])
+                temp['count'] = count
                 data.append(temp)
     except User.DoesNotExist:
         logger.exception(
