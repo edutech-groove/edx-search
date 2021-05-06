@@ -280,10 +280,7 @@ def program_discovery(request):
     }
     try:
         size, from_, page = _process_pagination_values(request)
-        if page == 0: 
-            page = 1
-        else:
-            page = page + 1
+        page += 1
         catalog_integration = CatalogIntegration.current()
         username = catalog_integration.service_username
         user = User.objects.get(username=username)
@@ -314,7 +311,7 @@ def program_discovery(request):
                 temp['count'] = count
                 data.append(temp)
     except User.DoesNotExist:
-        logger.exception(
+        log.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
         )
     return HttpResponse(
