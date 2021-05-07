@@ -254,6 +254,17 @@ def course_discovery(request):
     )
 
 
+def _get_program_facets(request):
+    selected_facets = []
+    status = request.POST.get('status', False)
+    program_type = request.POST.get('program_type', False)
+    if status and status != "All":
+        selected_facets.append("status_exact:%s" % status)
+    if program_type and program_type != "All":
+        selected_facets.append("type_exact:%s" % program_type)
+    return selected_facets
+
+
 @require_POST
 def program_discovery(request):
     """
@@ -262,7 +273,7 @@ def program_discovery(request):
     results = {
         "error": _("Nothing to search")
     }
-    data_templates = {
+    result_templates = {
         "modes": [],
         "language": "en",
         "course": "",
@@ -275,11 +286,26 @@ def program_discovery(request):
         "org": "",
         "id": "",
         "programtype": "",
-        "course_count": "",
+        "course_count": 0,
         "count": "",
     }
+    facet_template = {
+        "status": {
+            "terms": {
+                "active": 0,
+            }
+        },
+        "program_type": {
+            "terms": {
+                "Masters": 0,
+                "Professional Certificate": 0,
+            }
+        }
+    }
+
     try:
         size, from_, page = _process_pagination_values(request)
+        selected_facets = _get_program_facets(request)
         if page == 0: 
             page = 1
         else:
@@ -288,31 +314,45 @@ def program_discovery(request):
         username = catalog_integration.service_username
         user = User.objects.get(username=username)
         api = create_catalog_api_client(user, site=None)
-        programs = get_edx_api_data(
-            catalog_integration, 'programs', api=api,
-            querystring={
-                "page": page,
-                "page_size": size,
-            }, traverse_pagination=False
+        querystring = {
+            "page": page,
+            "page_size": size,
+            "selected_facets": selected_facets,
+        }
+        response = get_edx_api_data(
+            catalog_integration, 'search', api=api, resource_id="programs/facets",
+            querystring=querystring, traverse_pagination=False
         )
-        count = programs['count']
-        programs = programs['results']
-        data = []
+        count = response['objects']['count']
+        programs = response['objects']['results']
+        fields = response['fields']
+        data = {
+            "results": [],
+            "facets": {},
+        }
         for program in programs:
             record = copy.deepcopy(dict(program))
-            temp = copy.deepcopy(data_templates)
+            temp = copy.deepcopy(result_templates)
             if record['status'] == 'active':
                 temp['course'] = record['title']
-                if record['banner_image']:
-                    temp['image_url'] = record['banner_image']['large']['url']
+                if record['card_image_url'] != "None":
+                    temp['image_url'] = record['card_image_url']
                 if record['authoring_organizations']:
                     temp['org'] = record['authoring_organizations'][0]['name']
                 temp['content']['display_name'] = record['title']
                 temp['id'] = record['uuid']
                 temp['programtype'] = record['type']
-                temp['course_count'] = len(record['courses'])
                 temp['count'] = count
-                data.append(temp)
+                data['results'].append(temp)
+        status_data = dict()
+        for status in fields['status']:
+            status_data.update({status['text']: status['count'],})
+        type_data = dict()
+        for type in fields['type']:
+            type_data.update({type['text']: type['count'],})
+        facet_template['status']['terms'] = status_data
+        facet_template['program_type']['terms'] = type_data
+        data['facets'] = facet_template
     except User.DoesNotExist:
         logger.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
