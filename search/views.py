@@ -254,6 +254,14 @@ def course_discovery(request):
     )
 
 
+def get_catalog_integration_api(request):
+    catalog_integration = CatalogIntegration.current()
+    username = catalog_integration.service_username
+    user = User.objects.get(username=username)
+    api = create_catalog_api_client(user, site=None)
+    return catalog_integration, username, api
+
+
 def _get_program_facets(request):
     selected_facets = []
     status = request.POST.get('status', False)
@@ -263,6 +271,61 @@ def _get_program_facets(request):
     if program_type and program_type != "All":
         selected_facets.append("type_exact:%s" % program_type)
     return selected_facets
+
+
+def auto_suggestion(request):
+    course_template = {
+        "tille": "Course",
+        "records": [],
+    }
+    program_template = {
+        "tille": "Program",
+        "records": [],
+    }
+    record = {
+        "name": "",
+        "org": "",
+        "url": "",
+    }
+    try:
+        catalog_integration, username, api = get_catalog_integration_api(request)
+        search_term = request.POST.get("search_string", None)
+        querystring = {
+            "q": search_term,
+        }
+        response = get_edx_api_data(
+            catalog_integration, 
+            'search', 
+            api=api, 
+            resource_id="all",
+            querystring=querystring,
+            traverse_pagination=False
+        )
+        courses_items = programs_items = 0
+        for item in response["results"]:
+            if item["content_type"] == "course" and courses_items <= 3:
+                course_temp = copy.deepcopy(record)
+                course_temp["name"] = item["title"]
+                course_temp["url"] = item["course_runs"][0]["key"]
+                course_template["records"].append(course_temp)
+                courses_items += 1
+
+            elif item["content_type"] == "program" and programs_items <= 3:
+                program_temp = copy.deepcopy(record)
+                program_temp["name"] = item["title"]
+                program_temp["url"] = item["marketing_url"]
+                program_template["records"].append(program_temp)
+                programs_items += 1
+        data_response = [course_template, program_template]
+    except User.DoesNotExist:
+        log.exception(
+            'Failed to create API client. Service user {username} does not exist.'.format(username=username)
+        )
+    return HttpResponse(
+        json.dumps(data_response, cls=DjangoJSONEncoder),
+        content_type='application/json',
+        status=200
+    )
 
 
 @require_POST
@@ -306,10 +369,7 @@ def program_discovery(request):
         size, from_, page = _process_pagination_values(request)
         selected_facets = _get_program_facets(request)
         page += 1
-        catalog_integration = CatalogIntegration.current()
-        username = catalog_integration.service_username
-        user = User.objects.get(username=username)
-        api = create_catalog_api_client(user, site=None)
+        catalog_integration, username, api = get_catalog_integration_api(request)
         search_term = request.POST.get("search_string", None)
         querystring = {
             "page": page,
