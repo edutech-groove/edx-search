@@ -335,7 +335,7 @@ def program_discovery(request):
             temp = copy.deepcopy(result_templates)
             if record['status'] == 'active':
                 temp['course'] = record['title']
-                if record['card_image_url'] != "None":
+                if record['card_image_url'] != "null":
                     temp['image_url'] = record['card_image_url']
                 if record['authoring_organizations']:
                     temp['org'] = record['authoring_organizations'][0]['name']
