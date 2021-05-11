@@ -305,10 +305,7 @@ def program_discovery(request):
     try:
         size, from_, page = _process_pagination_values(request)
         selected_facets = _get_program_facets(request)
-        if page == 0: 
-            page = 1
-        else:
-            page += 1
+        page += 1
         catalog_integration = CatalogIntegration.current()
         username = catalog_integration.service_username
         user = User.objects.get(username=username)
