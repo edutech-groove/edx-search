@@ -287,7 +287,6 @@ def program_discovery(request):
         "id": "",
         "programtype": "",
         "course_count": 0,
-        "count": "",
     }
     facet_template = {
         "status": {
@@ -314,14 +313,20 @@ def program_discovery(request):
         username = catalog_integration.service_username
         user = User.objects.get(username=username)
         api = create_catalog_api_client(user, site=None)
+        search_term = request.POST.get("search_string", None)
         querystring = {
             "page": page,
             "page_size": size,
             "selected_facets": selected_facets,
+            "q": search_term,
         }
         response = get_edx_api_data(
-            catalog_integration, 'search', api=api, resource_id="programs/facets",
-            querystring=querystring, traverse_pagination=False
+            catalog_integration, 
+            'search', 
+            api=api, 
+            resource_id="programs/facets",
+            querystring=querystring,
+            traverse_pagination=False
         )
         count = response['objects']['count']
         programs = response['objects']['results']
@@ -329,6 +334,7 @@ def program_discovery(request):
         data = {
             "results": [],
             "facets": {},
+            "total": count,
         }
         for program in programs:
             record = copy.deepcopy(dict(program))
@@ -342,7 +348,6 @@ def program_discovery(request):
                 temp['content']['display_name'] = record['title']
                 temp['id'] = record['uuid']
                 temp['programtype'] = record['type']
-                temp['count'] = count
                 data['results'].append(temp)
         status_data = dict()
         for status in fields['status']:
