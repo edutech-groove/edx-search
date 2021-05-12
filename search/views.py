@@ -302,20 +302,21 @@ def auto_suggestion(request):
             traverse_pagination=False
         )
         courses_items = programs_items = 0
-        for item in response["results"]:
-            if item["content_type"] == "course" and courses_items <= 3:
-                course_temp = copy.deepcopy(record)
-                course_temp["name"] = item["title"]
-                course_temp["url"] = item["course_runs"][0]["key"]
-                course_template["records"].append(course_temp)
-                courses_items += 1
+        if response["results"]:
+            for item in response["results"]:
+                if item["content_type"] == "course" and courses_items <= 3:
+                    course_temp = copy.deepcopy(record)
+                    course_temp["name"] = item["title"]
+                    course_temp["url"] = item["course_runs"][0]["key"]
+                    course_template["records"].append(course_temp)
+                    courses_items += 1
 
-            elif item["content_type"] == "program" and programs_items <= 3:
-                program_temp = copy.deepcopy(record)
-                program_temp["name"] = item["title"]
-                program_temp["url"] = item["uuid"]
-                program_template["records"].append(program_temp)
-                programs_items += 1
+                elif item["content_type"] == "program" and programs_items <= 3:
+                    program_temp = copy.deepcopy(record)
+                    program_temp["name"] = item["title"]
+                    program_temp["url"] = item["uuid"]
+                    program_template["records"].append(program_temp)
+                    programs_items += 1
         data_response = [course_template, program_template]
     except User.DoesNotExist:
         log.exception(
