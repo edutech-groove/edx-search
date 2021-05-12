@@ -386,9 +386,9 @@ def program_discovery(request):
             querystring=querystring,
             traverse_pagination=False
         )
-        count = response['objects']['count']
-        programs = response['objects']['results']
-        fields = response['fields']
+        count = response['objects']['count'] and response['objects']['count'] or 0
+        programs = response['objects']['results'] and response['objects']['results'] or []
+        fields = response['fields'] and response['fields'] or []
         data = {
             "results": [],
             "facets": {},
@@ -408,11 +408,12 @@ def program_discovery(request):
                 temp['programtype'] = record['type']
                 data['results'].append(temp)
         status_data = dict()
-        for status in fields['status']:
-            status_data.update({status['text']: status['count'],})
-        type_data = dict()
-        for type in fields['type']:
-            type_data.update({type['text']: type['count'],})
+        if fields:
+            for status in fields['status']:
+                status_data.update({status['text']: status['count'],})
+            type_data = dict()
+            for type in fields['type']:
+                type_data.update({type['text']: type['count'],})
         facet_template['status']['terms'] = status_data
         facet_template['program_type']['terms'] = type_data
         data['facets'] = facet_template
