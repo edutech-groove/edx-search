@@ -275,11 +275,11 @@ def _get_program_facets(request):
 
 def auto_suggestion(request):
     course_template = {
-        "tille": "Course",
+        "type": "Course",
         "records": [],
     }
     program_template = {
-        "tille": "Program",
+        "type": "Program",
         "records": [],
     }
     record = {
@@ -313,7 +313,7 @@ def auto_suggestion(request):
             elif item["content_type"] == "program" and programs_items <= 3:
                 program_temp = copy.deepcopy(record)
                 program_temp["name"] = item["title"]
-                program_temp["url"] = item["marketing_url"]
+                program_temp["url"] = item["uuid"]
                 program_template["records"].append(program_temp)
                 programs_items += 1
         data_response = [course_template, program_template]
