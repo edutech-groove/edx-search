@@ -275,11 +275,11 @@ def _get_program_facets(request):
 
 def auto_suggestion(request):
     course_template = {
-        "tille": "Course",
+        "type": "Course",
         "records": [],
     }
     program_template = {
-        "tille": "Program",
+        "type": "Program",
         "records": [],
     }
     record = {
@@ -302,20 +302,21 @@ def auto_suggestion(request):
             traverse_pagination=False
         )
         courses_items = programs_items = 0
-        for item in response["results"]:
-            if item["content_type"] == "course" and courses_items <= 3:
-                course_temp = copy.deepcopy(record)
-                course_temp["name"] = item["title"]
-                course_temp["url"] = item["course_runs"][0]["key"]
-                course_template["records"].append(course_temp)
-                courses_items += 1
+        if response["results"]:
+            for item in response["results"]:
+                if item["content_type"] == "course" and courses_items <= 3:
+                    course_temp = copy.deepcopy(record)
+                    course_temp["name"] = item["title"]
+                    course_temp["url"] = item["course_runs"][0]["key"]
+                    course_template["records"].append(course_temp)
+                    courses_items += 1
 
-            elif item["content_type"] == "program" and programs_items <= 3:
-                program_temp = copy.deepcopy(record)
-                program_temp["name"] = item["title"]
-                program_temp["url"] = item["marketing_url"]
-                program_template["records"].append(program_temp)
-                programs_items += 1
+                elif item["content_type"] == "program" and programs_items <= 3:
+                    program_temp = copy.deepcopy(record)
+                    program_temp["name"] = item["title"]
+                    program_temp["url"] = item["uuid"]
+                    program_template["records"].append(program_temp)
+                    programs_items += 1
         data_response = [course_template, program_template]
     except User.DoesNotExist:
         log.exception(
@@ -371,6 +372,11 @@ def program_discovery(request):
         page += 1
         catalog_integration, username, api = get_catalog_integration_api(request)
         search_term = request.POST.get("search_string", None)
+        data = {
+            "results": [],
+            "facets": {},
+            "total": 0,
+        }
         querystring = {
             "page": page,
             "page_size": size,
@@ -385,36 +391,34 @@ def program_discovery(request):
             querystring=querystring,
             traverse_pagination=False
         )
-        count = response['objects']['count']
-        programs = response['objects']['results']
-        fields = response['fields']
-        data = {
-            "results": [],
-            "facets": {},
-            "total": count,
-        }
-        for program in programs:
-            record = copy.deepcopy(dict(program))
-            temp = copy.deepcopy(result_templates)
-            if record['status'] == 'active':
-                temp['course'] = record['title']
-                if record['card_image_url'] != "null":
-                    temp['image_url'] = record['card_image_url']
-                if record['authoring_organizations']:
-                    temp['org'] = record['authoring_organizations'][0]['name']
-                temp['content']['display_name'] = record['title']
-                temp['id'] = record['uuid']
-                temp['programtype'] = record['type']
-                data['results'].append(temp)
-        status_data = dict()
-        for status in fields['status']:
-            status_data.update({status['text']: status['count'],})
-        type_data = dict()
-        for type in fields['type']:
-            type_data.update({type['text']: type['count'],})
-        facet_template['status']['terms'] = status_data
-        facet_template['program_type']['terms'] = type_data
-        data['facets'] = facet_template
+        if response != []:
+            count = response['objects']['count'] and response['objects']['count'] or 0
+            programs = response['objects']['results'] and response['objects']['results'] or []
+            fields = response['fields'] and response['fields'] or []
+            for program in programs:
+                record = copy.deepcopy(dict(program))
+                temp = copy.deepcopy(result_templates)
+                if record['status'] == 'active':
+                    temp['course'] = record['title']
+                    if record['card_image_url'] != "null":
+                        temp['image_url'] = record['card_image_url']
+                    if record['authoring_organizations']:
+                        temp['org'] = record['authoring_organizations'][0]['name']
+                    temp['content']['display_name'] = record['title']
+                    temp['id'] = record['uuid']
+                    temp['programtype'] = record['type']
+                    data['results'].append(temp)
+            status_data = dict()
+            if fields:
+                for status in fields['status']:
+                    status_data.update({status['text']: status['count'],})
+                type_data = dict()
+                for type in fields['type']:
+                    type_data.update({type['text']: type['count'],})
+            facet_template['status']['terms'] = status_data
+            facet_template['program_type']['terms'] = type_data
+            data['total'] = count
+            data['facets'] = facet_template
     except User.DoesNotExist:
         log.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
