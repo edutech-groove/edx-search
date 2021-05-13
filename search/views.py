@@ -264,11 +264,12 @@ def get_catalog_integration_api(request):
 
 def _get_program_facets(request):
     selected_facets = []
-    status = request.POST.get('status', False)
-    program_type = request.POST.get('program_type', False)
-    if status and status != "All":
+    status = request.POST.get('status[]', False)
+    program_type = request.POST.get('program_type[]', False)
+
+    if status:
         selected_facets.append("status_exact:%s" % status)
-    if program_type and program_type != "All":
+    if program_type:
         selected_facets.append("type_exact:%s" % program_type)
     return selected_facets
 
