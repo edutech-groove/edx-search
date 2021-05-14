@@ -53,6 +53,24 @@ def _process_field_values(request):
         if field_key in course_discovery_filter_fields()
     }
 
+def _get_field_values(request):
+    """
+    Format:
+        field_dictionary = {
+            "org": ["Groove", "groove"],
+            "modes": ["honor", "audit"],
+        }
+    """
+    dict = {}
+    for field_key in request.POST:
+        if field_key in ["modes[]", "org[]"]:
+            value = request.POST.getlist(field_key, False)
+            field_key = field_key.split('[]')[0]
+            if value:
+                value_field = {field_key: value}
+                dict.update(value_field)
+    return dict
+
 
 # @require_POST 
 def do_search(request, course_id=None):
@@ -192,7 +210,10 @@ def course_discovery(request):
 
     try:
         size, from_, page = _process_pagination_values(request)
-        field_dictionary = _process_field_values(request)
+        if settings.FEATURES.get('ENABLE_ENHENCEDSEARCH', False):
+            field_dictionary = _get_field_values(request)
+        else:
+            field_dictionary = _process_field_values(request)
 
         # Analytics - log search request
         track.emit(
@@ -264,13 +285,14 @@ def get_catalog_integration_api(request):
 
 def _get_program_facets(request):
     selected_facets = []
-    status = request.POST.get('status[]', False)
-    program_type = request.POST.get('program_type[]', False)
-
+    status = request.POST.getlist('status[]', False)
+    program_type = request.POST.getlist('program_type[]', False)
     if status:
-        selected_facets.append("status_exact:%s" % status)
+        for item in status:
+            selected_facets.append("status_exact:%s" % item)
     if program_type:
-        selected_facets.append("type_exact:%s" % program_type)
+        for item in program_type:
+            selected_facets.append("type_exact:%s" % item)
     return selected_facets
 
 
