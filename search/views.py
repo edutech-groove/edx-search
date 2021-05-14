@@ -20,8 +20,6 @@ from openedx.core.djangoapps.catalog.models import CatalogIntegration
 from openedx.core.lib.edx_api_utils import get_edx_api_data
 from django.contrib.auth import get_user_model
 
-
-
 # log appears to be standard name used for logger
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 User = get_user_model()  # pylint: disable=invalid-name
@@ -45,7 +43,7 @@ def _process_pagination_values(request):
     return size, from_, page
 
 
-def _process_field_values(request):
+def _process_field_values(request): # replaced by _get_field_values()
     """ Create separate dictionary of supported filter values provided """
     return {
         field_key: request.POST[field_key]
@@ -53,22 +51,23 @@ def _process_field_values(request):
         if field_key in course_discovery_filter_fields()
     }
 
+
 def _get_field_values(request):
-    """
-    Format:
-        field_dictionary = {
-            "org": ["Groove", "groove"],
-            "modes": ["honor", "audit"],
-        }
-    """
+    # DEFAULT_FILTER_FIELDS = ["org", "org[]", "modes", "modes[]", "language", "language[]"]
     dict = {}
     for field_key in request.POST:
-        if field_key in ["modes[]", "org[]"]:
-            value = request.POST.getlist(field_key, False)
-            field_key = field_key.split('[]')[0]
-            if value:
-                value_field = {field_key: value}
-                dict.update(value_field)
+        if field_key in course_discovery_filter_fields():
+            if field_key.find('[]') != -1:
+                value = request.POST.getlist(field_key, False)
+                field_key = field_key.split('[]')[0]
+                if value:
+                    value_field = {field_key: value}
+                    dict.update(value_field)
+            else:
+                value = request.POST[field_key]
+                if value:
+                    value_field = {field_key: value}
+                    dict.update(value_field)
     return dict
 
 
@@ -210,11 +209,8 @@ def course_discovery(request):
 
     try:
         size, from_, page = _process_pagination_values(request)
-        if settings.FEATURES.get('ENABLE_ENHENCEDSEARCH', False):
-            field_dictionary = _get_field_values(request)
-        else:
-            field_dictionary = _process_field_values(request)
-
+        field_dictionary = _get_field_values(request)
+       
         # Analytics - log search request
         track.emit(
             'edx.course_discovery.search.initiated',
