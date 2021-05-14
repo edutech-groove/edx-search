@@ -20,8 +20,6 @@ from openedx.core.djangoapps.catalog.models import CatalogIntegration
 from openedx.core.lib.edx_api_utils import get_edx_api_data
 from django.contrib.auth import get_user_model
 
-
-
 # log appears to be standard name used for logger
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 User = get_user_model()  # pylint: disable=invalid-name
@@ -45,13 +43,30 @@ def _process_pagination_values(request):
     return size, from_, page
 
 
-def _process_field_values(request):
+def _process_field_values(request): # replaced by _get_field_values()
     """ Create separate dictionary of supported filter values provided """
     return {
         field_key: request.POST[field_key]
         for field_key in request.POST
         if field_key in course_discovery_filter_fields()
     }
+
+
+def _get_field_values(request):
+    # DEFAULT_FILTER_FIELDS = ["org", "org[]", "modes", "modes[]", "language", "language[]"]
+    dict = {}
+    for field_key in request.POST:
+        if field_key in course_discovery_filter_fields():
+            if field_key.find('[]') != -1:
+                value = request.POST.getlist(field_key, False)
+                field_key = field_key.split('[]')[0]
+                value_field = {field_key: value}
+                dict.update(value_field)
+            else:
+                value = request.POST[field_key]
+                value_field = {field_key: value}
+                dict.update(value_field)
+    return dict
 
 
 # @require_POST 
@@ -192,8 +207,8 @@ def course_discovery(request):
 
     try:
         size, from_, page = _process_pagination_values(request)
-        field_dictionary = _process_field_values(request)
-
+        field_dictionary = _get_field_values(request)
+       
         # Analytics - log search request
         track.emit(
             'edx.course_discovery.search.initiated',
@@ -264,12 +279,14 @@ def get_catalog_integration_api(request):
 
 def _get_program_facets(request):
     selected_facets = []
-    status = request.POST.get('status', False)
-    program_type = request.POST.get('program_type', False)
-    if status and status != "All":
-        selected_facets.append("status_exact:%s" % status)
-    if program_type and program_type != "All":
-        selected_facets.append("type_exact:%s" % program_type)
+    status = request.POST.getlist('status[]', False)
+    program_type = request.POST.getlist('program_type[]', False)
+    if status:
+        for item in status:
+            selected_facets.append("status_exact:%s" % item)
+    if program_type:
+        for item in program_type:
+            selected_facets.append("type_exact:%s" % item)
     return selected_facets
 
 
