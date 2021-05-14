@@ -60,14 +60,12 @@ def _get_field_values(request):
             if field_key.find('[]') != -1:
                 value = request.POST.getlist(field_key, False)
                 field_key = field_key.split('[]')[0]
-                if value:
-                    value_field = {field_key: value}
-                    dict.update(value_field)
+                value_field = {field_key: value}
+                dict.update(value_field)
             else:
                 value = request.POST[field_key]
-                if value:
-                    value_field = {field_key: value}
-                    dict.update(value_field)
+                value_field = {field_key: value}
+                dict.update(value_field)
     return dict
 
 
