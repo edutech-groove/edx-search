@@ -424,6 +424,7 @@ def program_discovery(request):
                     temp['content']['display_name'] = record['title']
                     temp['id'] = record['uuid']
                     temp['programtype'] = record['type']
+                    temp['course_count'] = record['course_count']
                     data['results'].append(temp)
             status_data = dict()
             if fields:
