@@ -370,11 +370,6 @@ def program_discovery(request):
         "course_count": 0,
     }
     facet_template = {
-        "status": {
-            "terms": {
-                "active": 0,
-            }
-        },
         "program_type": {
             "terms": {
                 "Masters": 0,
@@ -426,14 +421,10 @@ def program_discovery(request):
                     temp['programtype'] = record['type']
                     temp['course_count'] = record['course_count']
                     data['results'].append(temp)
-            status_data = dict()
             if fields:
-                for status in fields['status']:
-                    status_data.update({status['text']: status['count'],})
                 type_data = dict()
                 for type in fields['type']:
                     type_data.update({type['text']: type['count'],})
-            facet_template['status']['terms'] = status_data
             facet_template['program_type']['terms'] = type_data
             data['total'] = count
             data['facets'] = facet_template
