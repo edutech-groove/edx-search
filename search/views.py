@@ -289,7 +289,7 @@ def _get_program_facets(request):
             selected_facets.append("type_exact:%s" % item)
     return selected_facets
 
-
+@require_POST
 def auto_suggestion(request):
     course_template = {
         "type": "Course",
