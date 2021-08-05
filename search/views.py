@@ -33,9 +33,19 @@ RESULT_TEMPLATE = {
     "course_count": 0,
 }
 FACET_TEMPLATE = {
-    "course_type": {},
-    "program_type": {},
-    "org": {},
+    "course_type": {
+        "honor": 0,
+        "audit": 0,
+    },
+    "program_type": {
+        "Masters": 0,
+        "Professional": 0,
+    },
+    "org": {
+        "edx: EDX": 0,
+        "groove: Groove": 0,
+        "HUYUNI: HUYUNI": 0,
+    },
 }
 DATA_RESPONSE = {
     "results": [],
@@ -364,97 +374,109 @@ def auto_suggestion(request):
     )
 
 
-# @require_POST
-# def program_discovery(request):
-#     """
-#     Search Programs lists
-#     """
-#     results = {
-#         "error": _("Nothing to search")
-#     }
-#     result_templates = {
-#         "modes": [],
-#         "language": "en",
-#         "course": "",
-#         "number": "",
-#         "content": {
-#             "display_name": "No data",
-#         },
-#         "start": "",
-#         "image_url": "",
-#         "org": "",
-#         "id": "",
-#         "programtype": "",
-#         "course_count": 0,
-#     }
-#     facet_template = {
-#         "program_type": {
-#             "terms": {
-#                 "Masters": 0,
-#                 "Professional Certificate": 0,
-#             }
-#         }
-#     }
+@require_POST
+def program_discovery(request):
+    """
+    Search Programs lists
+    """
+    results = {
+        "error": _("Nothing to search")
+    }
+    result_templates = {
+        "modes": [],
+        "language": "en",
+        "course": "",
+        "number": "",
+        "content": {
+            "display_name": "No data",
+        },
+        "start": "",
+        "image_url": "",
+        "org": "",
+        "id": "",
+        "programtype": "",
+        "course_count": 0,
+    }
+    facet_template = {
+        "program_type": {
+            "terms": {
+                "Masters": 0,
+                "Professional Certificate": 0,
+            }
+        }
+    }
 
-#     try:
-#         size, from_, page = _process_pagination_values(request)
-#         selected_facets = _get_program_facets(request)
-#         page += 1
-#         catalog_integration, username, api = get_catalog_integration_api(request)
-#         search_term = request.POST.get("search_string", None)
-#         data = {
-#             "results": [],
-#             "facets": {},
-#             "total": 0,
-#         }
-#         querystring = {
-#             "page": page,
-#             "page_size": size,
-#             "selected_facets": selected_facets,
-#             "q": search_term,
-#         }
-#         response = get_edx_api_data(
-#             catalog_integration, 
-#             'search', 
-#             api=api, 
-#             resource_id="programs/facets",
-#             querystring=querystring,
-#             traverse_pagination=False
-#         )
-#         if response != []:
-#             count = response['objects']['count'] and response['objects']['count'] or 0
-#             programs = response['objects']['results'] and response['objects']['results'] or []
-#             fields = response['fields'] and response['fields'] or []
-#             for program in programs:
-#                 record = copy.deepcopy(dict(program))
-#                 temp = copy.deepcopy(result_templates)
-#                 if record['status'] == 'active':
-#                     temp['course'] = record['title']
-#                     if record['card_image_url'] != "null":
-#                         temp['image_url'] = record['card_image_url']
-#                     if record['authoring_organizations']:
-#                         temp['org'] = record['authoring_organizations'][0]['name']
-#                     temp['content']['display_name'] = record['title']
-#                     temp['id'] = record['uuid']
-#                     temp['programtype'] = record['type']
-#                     temp['course_count'] = record['course_count']
-#                     data['results'].append(temp)
-#             if fields:
-#                 type_data = dict()
-#                 for type in fields['type']:
-#                     type_data.update({type['text']: type['count'],})
-#             facet_template['program_type']['terms'] = type_data
-#             data['total'] = count
-#             data['facets'] = facet_template
-#     except User.DoesNotExist:
-#         log.exception(
-#             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
-#         )
-#     return HttpResponse(
-#         json.dumps(data, cls=DjangoJSONEncoder),
-#         content_type='application/json',
-#         status=200
-#     )
+    try:
+        size, from_, page = _process_pagination_values(request)
+        selected_facets = _get_program_facets(request)
+        page += 1
+        catalog_integration, username, api = get_catalog_integration_api(request)
+        search_term = request.POST.get("search_string", None)
+        data = {
+            "results": [],
+            "facets": {},
+            "total": 0,
+        }
+        querystring = {
+            "page": page,
+            "page_size": size,
+            "selected_facets": selected_facets,
+            "q": search_term,
+        }
+        response = get_edx_api_data(
+            catalog_integration, 
+            'search', 
+            api=api, 
+            resource_id="programs/facets",
+            querystring=querystring,
+            traverse_pagination=False
+        )
+        if response != []:
+            count = response['objects']['count'] and response['objects']['count'] or 0
+            programs = response['objects']['results'] and response['objects']['results'] or []
+            fields = response['fields'] and response['fields'] or []
+            for program in programs:
+                record = copy.deepcopy(dict(program))
+                temp = copy.deepcopy(result_templates)
+                if record['status'] == 'active':
+                    temp['course'] = record['title']
+                    if record['card_image_url'] != "null":
+                        temp['image_url'] = record['card_image_url']
+                    if record['authoring_organizations']:
+                        temp['org'] = record['authoring_organizations'][0]['name']
+                    temp['content']['display_name'] = record['title']
+                    temp['id'] = record['uuid']
+                    temp['programtype'] = record['type']
+                    temp['course_count'] = record['course_count']
+                    data['results'].append(temp)
+            if fields:
+                type_data = dict()
+                for type in fields['type']:
+                    type_data.update({type['text']: type['count'],})
+            facet_template['program_type']['terms'] = type_data
+            data['total'] = count
+            data['facets'] = facet_template
+    except User.DoesNotExist:
+        log.exception(
+            'Failed to create API client. Service user {username} does not exist.'.format(username=username)
+        )
+    return HttpResponse(
+        json.dumps(data, cls=DjangoJSONEncoder),
+        content_type='application/json',
+        status=200
+    )
+
+
+def get_discovery_facet():
+    return getattr(settings, "DISCOVERY_FACETS", FACET_TEMPLATE)
+    
+
+def _remove_duplicate_dict(programfacet, coursefacet):
+    result = {}
+    for key, value in programfacet.items():
+        if key not in coursefacet.keys():
+            result[key] = value
+    return result
 
 
 def _get_selected_filter(request):
@@ -479,12 +501,11 @@ def _get_selected_filter(request):
             "type": request.POST.getlist('program_types[]', ""),
             "authoring_organizations": request.POST.getlist('orgs[]', ""),
         })
-    print("========resource_id==========", resource_id)                      
     return selected_filter, resource_id
 
 
 @require_POST
-def program_discovery(request):
+def discovery(request):
     """
     Discovery Course and Program
     RESULT_TEMPLATE = {
@@ -496,9 +517,19 @@ def program_discovery(request):
         "course_count": 0,
     }
     FACET_TEMPLATE = {
-        "course_type": {},
-        "program_type": {},
-        "org": {},
+        "course_type": {
+            "honor": 0,
+            "audit": 0,
+        },
+        "program_type": {
+            "Masters": 0,
+            "Professional": 0,
+        },
+        "org": {
+            "edx: EDX": 0,
+            "groove: Groove": 0,
+            "HUYUNI: HUYUNI": 0,
+        },
     }
     DATA_RESPONSE = {
         "results": [],
@@ -518,6 +549,7 @@ def program_discovery(request):
         }
         selected_filter, resource_id = _get_selected_filter(request)
         querystring.update(selected_filter)
+        FACET_TEMPLATE = get_discovery_facet()
         response = get_edx_api_data(
             catalog_integration, 
             'search', 
@@ -556,9 +588,9 @@ def program_discovery(request):
                 if fields.get('seat_types', False):
                     for type in fields['seat_types']:
                         FACET_TEMPLATE['course_type'].update({type['text']: type['count'],})
+            FACET_TEMPLATE['program_type'] = _remove_duplicate_dict(FACET_TEMPLATE['program_type'], FACET_TEMPLATE['course_type'])
             DATA_RESPONSE['facets'] = FACET_TEMPLATE
             DATA_RESPONSE['total'] = count
-        print("==========response===========", DATA_RESPONSE)                      
     except User.DoesNotExist:
         log.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)

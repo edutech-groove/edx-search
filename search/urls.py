@@ -14,5 +14,5 @@ urlpatterns = [
     url(r'^course_discovery/$', views.course_discovery, name='course_discovery'),
     url(r'^program_discovery/$', views.program_discovery, name='program_discovery'),
     url(r'^auto_suggestion/$', views.auto_suggestion, name='auto_suggestion'),
-    # url(r'^discovery/$', views.discovery, name='discovery'),
+    url(r'^discovery/$', views.discovery, name='discovery'),
 ]
