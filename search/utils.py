@@ -1,7 +1,14 @@
 """ Utility classes to support others """
 import importlib
 import collections
+from django.conf import settings
 
+
+FACET_TEMPLATE = {
+    "seat_types": {},
+    "type": {},
+    "organizations": {}
+}
 
 def _load_class(class_path, default):
     """ Loads the class from the class_path string """
@@ -17,6 +24,8 @@ def _load_class(class_path, default):
 
     return result_processor
 
+def get_discovery_facet():
+    return getattr(settings, "DISCOVERY_FACETS", FACET_TEMPLATE)
 
 def _is_iterable(item):
     """ Checks if an item is iterable (list, tuple, generator), but not string """

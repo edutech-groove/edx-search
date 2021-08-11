@@ -19,15 +19,11 @@ from openedx.core.djangoapps.catalog.utils import create_catalog_api_client
 from openedx.core.djangoapps.catalog.models import CatalogIntegration
 from openedx.core.lib.edx_api_utils import get_edx_api_data
 from django.contrib.auth import get_user_model
+from .utils import get_discovery_facet
 
 # log appears to be standard name used for logger
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 User = get_user_model()  # pylint: disable=invalid-name
-FACET_TEMPLATE = {
-    "seat_types": {},
-    "type": {},
-    "organizations": {}
-}
 
 
 def _process_pagination_values(request):
@@ -444,10 +440,6 @@ def program_discovery(request):
     )
 
 
-def get_discovery_facet():
-    return getattr(settings, "DISCOVERY_FACETS", FACET_TEMPLATE)
-    
-
 def _remove_duplicate_dict(programfacet, coursefacet):
     result = {}
     for key, value in programfacet.items():
@@ -481,6 +473,17 @@ def _get_selected_filter(request):
     return selected_filter, resource_id
 
 
+def update_facets(res_facets, facets_template):
+    for key, value in facets_template.items():
+        dict = {}
+        data = res_facets.get(key, [])
+        for line in data:
+            dict.update({line['text']: line['count']})
+        facets_template[key].update(dict)
+    facets_template['type'] = _remove_duplicate_dict(facets_template['type'], facets_template['seat_types'])
+    return facets_template
+
+
 @require_POST
 def discovery(request):
     """
@@ -495,7 +498,9 @@ def discovery(request):
         "org": [],
         "course_count": 0,
     }
+    FACET_TEMPLATE = copy.deepcopy(dict(get_discovery_facet()))
     DATA_RESPONSE = {
+        "facets": FACET_TEMPLATE,
         "results": [],
         "total": 0,
     }
@@ -522,6 +527,7 @@ def discovery(request):
         if response != []:
             count = response['objects']['count']
             results = response['objects']['results']
+            fields = response['fields']
             for result in results:
                 record = copy.deepcopy(dict(result))
                 temp = copy.deepcopy(RESULT_TEMPLATE)
@@ -538,6 +544,8 @@ def discovery(request):
                     temp['image_url'] = record['image_url']
                     temp['org'] = record['org']
                 DATA_RESPONSE['results'].append(temp)
+            if fields:
+                update_facets(fields, FACET_TEMPLATE)
             DATA_RESPONSE['total'] = count
     except User.DoesNotExist:
         log.exception(
@@ -551,7 +559,7 @@ def discovery(request):
 
 
 def facets(request):
-    FACET_TEMPLATE = get_discovery_facet()
+    FACET_TEMPLATE = copy.deepcopy(dict(get_discovery_facet()))
     try:
         catalog_integration, username, api = get_catalog_integration_api(request)
         response = get_edx_api_data(
@@ -562,13 +570,7 @@ def facets(request):
             traverse_pagination=False
         )
         if response['fields'] != []:
-            for key, value in FACET_TEMPLATE.items():
-                dict = {}
-                data = response['fields'].get(key, [])
-                for line in data:
-                    dict.update({line['text']: line['count']})
-                FACET_TEMPLATE[key].update(dict)
-            FACET_TEMPLATE['type'] = _remove_duplicate_dict(FACET_TEMPLATE['type'], FACET_TEMPLATE['seat_types'])
+           update_facets(response['fields'], FACET_TEMPLATE)
     except User.DoesNotExist:
         log.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
