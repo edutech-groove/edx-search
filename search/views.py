@@ -33,23 +33,12 @@ RESULT_TEMPLATE = {
     "course_count": 0,
 }
 FACET_TEMPLATE = {
-    "course_type": {
-        "honor": 0,
-        "audit": 0,
-    },
-    "program_type": {
-        "Masters": 0,
-        "Professional": 0,
-    },
-    "org": {
-        "edx: EDX": 0,
-        "groove: Groove": 0,
-        "HUYUNI: HUYUNI": 0,
-    },
+    "seat_types": {},
+    "type": {},
+    "organizations": {}
 }
 DATA_RESPONSE = {
     "results": [],
-    "facets": {},
     "total": 0,
 }
 
@@ -484,22 +473,22 @@ def _get_selected_filter(request):
     resource_id = request.POST.get('resource_id', 'all')
     if resource_id == 'all':
         resource_id = 'all/facets'
-        type = request.POST.getlist('program_types[]', []) + request.POST.getlist('seat_types[]', [])
+        type = request.POST.getlist('type[]', []) + request.POST.getlist('seat_types[]', [])
         selected_filter.update({
-            "authoring_organizations": request.POST.getlist('orgs[]', ""),
+            "authoring_organizations": request.POST.getlist('organizations[]', ""),
             "type": type,
         })
     elif resource_id == 'course':
         resource_id = 'course_runs/facets'
         selected_filter.update({
             "seat_types": request.POST.getlist('seat_types[]', ""),
-            "org": request.POST.getlist('orgs[]', ""),
+            "org": request.POST.getlist('organizations[]', ""),
         })
     elif resource_id == 'program':
         resource_id = 'programs/facets'
         selected_filter.update({
-            "type": request.POST.getlist('program_types[]', ""),
-            "authoring_organizations": request.POST.getlist('orgs[]', ""),
+            "type": request.POST.getlist('type[]', ""),
+            "authoring_organizations": request.POST.getlist('organizations[]', ""),
         })
     return selected_filter, resource_id
 
@@ -508,34 +497,7 @@ def _get_selected_filter(request):
 def discovery(request):
     """
     Discovery Course and Program
-    RESULT_TEMPLATE = {
-        "content_type": "",
-        "title": "",
-        "id": "",
-        "image_url": "",
-        "org": [],
-        "course_count": 0,
-    }
-    FACET_TEMPLATE = {
-        "course_type": {
-            "honor": 0,
-            "audit": 0,
-        },
-        "program_type": {
-            "Masters": 0,
-            "Professional": 0,
-        },
-        "org": {
-            "edx: EDX": 0,
-            "groove: Groove": 0,
-            "HUYUNI: HUYUNI": 0,
-        },
-    }
-    DATA_RESPONSE = {
-        "results": [],
-        "facets": {},
-        "total": 0,
-    }
+
     """
     try:
         size, from_, page = _process_pagination_values(request)
@@ -549,7 +511,6 @@ def discovery(request):
         }
         selected_filter, resource_id = _get_selected_filter(request)
         querystring.update(selected_filter)
-        FACET_TEMPLATE = get_discovery_facet()
         response = get_edx_api_data(
             catalog_integration, 
             'search', 
@@ -561,7 +522,6 @@ def discovery(request):
         if response != []:
             count = response['objects']['count']
             results = response['objects']['results']
-            fields = response['fields'] and response['fields'] or []
             for result in results:
                 record = copy.deepcopy(dict(result))
                 temp = copy.deepcopy(RESULT_TEMPLATE)
@@ -577,19 +537,7 @@ def discovery(request):
                     temp['id'] = record['key']
                     temp['image_url'] = record['image_url']
                     temp['org'] = record['org']
-                DATA_RESPONSE['results'].append(temp) 
-            if fields:
-                if fields.get('type', False):
-                    for type in fields['type']:
-                        FACET_TEMPLATE['program_type'].update({type['text']: type['count'],})
-                if fields.get('organizations', False):
-                    for type in fields['organizations']:
-                        FACET_TEMPLATE['org'].update({type['text']: type['count'],})
-                if fields.get('seat_types', False):
-                    for type in fields['seat_types']:
-                        FACET_TEMPLATE['course_type'].update({type['text']: type['count'],})
-            FACET_TEMPLATE['program_type'] = _remove_duplicate_dict(FACET_TEMPLATE['program_type'], FACET_TEMPLATE['course_type'])
-            DATA_RESPONSE['facets'] = FACET_TEMPLATE
+                DATA_RESPONSE['results'].append(temp)
             DATA_RESPONSE['total'] = count
     except User.DoesNotExist:
         log.exception(
@@ -600,4 +548,33 @@ def discovery(request):
         content_type='application/json',
         status=200
     )
-    
+
+
+def facets(request):
+    FACET_TEMPLATE = get_discovery_facet()
+    try:
+        catalog_integration, username, api = get_catalog_integration_api(request)
+        response = get_edx_api_data(
+            catalog_integration, 
+            'search', 
+            api=api,
+            resource_id="all/facets",
+            traverse_pagination=False
+        )
+        if response['fields'] != []:
+            for key, value in FACET_TEMPLATE.items():
+                dict = {}
+                data = response['fields'].get(key, [])
+                for line in data:
+                    dict.update({line['text']: line['count']})
+                FACET_TEMPLATE[key].update(dict)
+            FACET_TEMPLATE['type'] = _remove_duplicate_dict(FACET_TEMPLATE['type'], FACET_TEMPLATE['seat_types'])
+    except User.DoesNotExist:
+        log.exception(
+            'Failed to create API client. Service user {username} does not exist.'.format(username=username)
+        )
+    return HttpResponse(
+        json.dumps(FACET_TEMPLATE, cls=DjangoJSONEncoder),
+        content_type='application/json',
+        status=200
+    )

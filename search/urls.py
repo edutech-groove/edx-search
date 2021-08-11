@@ -15,4 +15,5 @@ urlpatterns = [
     url(r'^program_discovery/$', views.program_discovery, name='program_discovery'),
     url(r'^auto_suggestion/$', views.auto_suggestion, name='auto_suggestion'),
     url(r'^discovery/$', views.discovery, name='discovery'),
+    url(r'^discovery/facets/$', views.facets, name='discovery_facets'),
 ]
