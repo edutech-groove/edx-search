@@ -23,24 +23,12 @@ from django.contrib.auth import get_user_model
 # log appears to be standard name used for logger
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 User = get_user_model()  # pylint: disable=invalid-name
-
-RESULT_TEMPLATE = {
-    "content_type": "",
-    "title": "",
-    "id": "",
-    "image_url": "",
-    "org": [],
-    "course_count": 0,
-}
 FACET_TEMPLATE = {
     "seat_types": {},
     "type": {},
     "organizations": {}
 }
-DATA_RESPONSE = {
-    "results": [],
-    "total": 0,
-}
+
 
 def _process_pagination_values(request):
     """ process pagination requests from request parameter """
@@ -499,6 +487,18 @@ def discovery(request):
     Discovery Course and Program
 
     """
+    RESULT_TEMPLATE = {
+        "content_type": "",
+        "title": "",
+        "id": "",
+        "image_url": "",
+        "org": [],
+        "course_count": 0,
+    }
+    DATA_RESPONSE = {
+        "results": [],
+        "total": 0,
+    }
     try:
         size, from_, page = _process_pagination_values(request)
         page += 1
