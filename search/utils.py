@@ -6,7 +6,7 @@ from django.conf import settings
 
 FACET_TEMPLATE = {
     "seat_types": {},
-    "type": {},
+    "program_types": {},
     "organizations": {}
 }
 

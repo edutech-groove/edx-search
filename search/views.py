@@ -451,24 +451,28 @@ def _remove_duplicate_dict(programfacet, coursefacet):
 def _get_selected_filter(request):
     selected_filter = {}
     resource_id = request.POST.get('resource_id', 'all')
+    program_types = request.POST.getlist('program_types[]', [])
+    seat_types = request.POST.getlist('seat_types[]', [])
+    organizations = request.POST.getlist('organizations[]', [])
     if resource_id == 'all':
         resource_id = 'all/facets'
-        type = request.POST.getlist('type[]', []) + request.POST.getlist('seat_types[]', [])
         selected_filter.update({
-            "authoring_organizations": request.POST.getlist('organizations[]', ""),
-            "type": type,
+            "authoring_organizations": organizations,
+            "seat_types": seat_types,
+            "program_types": program_types,
         })
     elif resource_id == 'course':
         resource_id = 'course_runs/facets'
         selected_filter.update({
-            "seat_types": request.POST.getlist('seat_types[]', ""),
-            "org": request.POST.getlist('organizations[]', ""),
+            "seat_types": seat_types,
+            "org": organizations,
+            "program_types": program_types,
         })
     elif resource_id == 'program':
         resource_id = 'programs/facets'
         selected_filter.update({
-            "type": request.POST.getlist('type[]', ""),
-            "authoring_organizations": request.POST.getlist('organizations[]', ""),
+            "program_types": program_types,
+            "authoring_organizations": organizations,
         })
     return selected_filter, resource_id
 
@@ -480,7 +484,6 @@ def update_facets(res_facets, facets_template):
         for line in data:
             dict.update({line['text']: line['count']})
         facets_template[key].update(dict)
-    facets_template['type'] = _remove_duplicate_dict(facets_template['type'], facets_template['seat_types'])
     return facets_template
 
 
@@ -493,6 +496,7 @@ def discovery(request):
     RESULT_TEMPLATE = {
         "content_type": "",
         "title": "",
+        "program_types": "",
         "id": "",
         "image_url": "",
         "org": [],
@@ -537,6 +541,7 @@ def discovery(request):
                     temp['id'] = record['uuid']
                     temp['image_url'] = record['card_image_url']
                     temp['course_count'] = record['course_count']
+                    temp['program_types'] = record['program_types']
                     if record['authoring_organizations']:
                         temp['org'] = [org['name'] for org in record['authoring_organizations']]
                 if record['content_type'] == 'courserun':
