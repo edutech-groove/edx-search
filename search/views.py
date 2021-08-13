@@ -440,14 +440,6 @@ def program_discovery(request):
     )
 
 
-def _remove_duplicate_dict(programfacet, coursefacet):
-    result = {}
-    for key, value in programfacet.items():
-        if key not in coursefacet.keys():
-            result[key] = value
-    return result
-
-
 def _get_selected_filter(request):
     selected_filter = {}
     resource_id = request.POST.get('resource_id', 'all')
