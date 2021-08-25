@@ -493,12 +493,15 @@ def discovery(request):
         "image_url": "",
         "org": [],
         "course_count": 0,
+        "start": "",
+        "number": "",
     }
     FACET_TEMPLATE = copy.deepcopy(dict(get_discovery_facet()))
     DATA_RESPONSE = {
         "facets": FACET_TEMPLATE,
         "results": [],
-        "total": 0,
+        "course_total": 0,
+        "program_total": 0,
     }
     try:
         size, from_, page = _process_pagination_values(request)
@@ -521,7 +524,7 @@ def discovery(request):
             traverse_pagination=False
         )
         if response != []:
-            count = response['objects']['count']
+            course_total = program_total = 0
             results = response['objects']['results']
             fields = response['fields']
             for result in results:
@@ -530,6 +533,7 @@ def discovery(request):
                 temp['title'] = record['title']
                 temp['content_type'] = record['content_type']
                 if record['content_type'] == 'program':
+                    program_total += 1
                     temp['id'] = record['uuid']
                     temp['image_url'] = record['card_image_url']
                     temp['course_count'] = record['course_count']
@@ -537,13 +541,18 @@ def discovery(request):
                     if record['authoring_organizations']:
                         temp['org'] = [org['name'] for org in record['authoring_organizations']]
                 if record['content_type'] == 'courserun':
+                    course_total += 1
                     temp['id'] = record['key']
                     temp['image_url'] = record['image_url']
                     temp['org'] = record['org']
+                    temp['start'] = record['start']
+                    temp['number'] = record['number']
                 DATA_RESPONSE['results'].append(temp)
             if fields:
                 update_facets(fields, FACET_TEMPLATE)
-            DATA_RESPONSE['total'] = count
+            DATA_RESPONSE['course_total'] = course_total
+            DATA_RESPONSE['program_total'] = program_total
+
     except User.DoesNotExist:
         log.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
@@ -566,7 +575,7 @@ def facets(request):
             resource_id="all/facets",
             traverse_pagination=False
         )
-        if response['fields'] != []:
+        if response != []:
            update_facets(response['fields'], FACET_TEMPLATE)
     except User.DoesNotExist:
         log.exception(
