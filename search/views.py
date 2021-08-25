@@ -500,8 +500,8 @@ def discovery(request):
     DATA_RESPONSE = {
         "facets": FACET_TEMPLATE,
         "results": [],
-        "course_total": 0,
-        "program_total": 0,
+        "course_count": 0,
+        "program_count": 0,
     }
     try:
         size, from_, page = _process_pagination_values(request)
@@ -550,8 +550,8 @@ def discovery(request):
                 DATA_RESPONSE['results'].append(temp)
             if fields:
                 update_facets(fields, FACET_TEMPLATE)
-            DATA_RESPONSE['course_total'] = course_total
-            DATA_RESPONSE['program_total'] = program_total
+            DATA_RESPONSE['course_count'] = course_total
+            DATA_RESPONSE['program_count'] = program_total
 
     except User.DoesNotExist:
         log.exception(
