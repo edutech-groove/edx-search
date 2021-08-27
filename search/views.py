@@ -440,33 +440,31 @@ def program_discovery(request):
     )
 
 
-def _get_selected_filter(request):
+def _get_selected_filter(request, resource_id=False):
     selected_filter = {}
-    resource_id = request.POST.get('resource_id', 'all')
+    if not resource_id:
+        resource_id = request.POST.get('resource_id', 'all/facets')
     program_types = request.POST.getlist('program_types[]', [])
     seat_types = request.POST.getlist('seat_types[]', [])
     organizations = request.POST.getlist('organizations[]', [])
-    if resource_id == 'all':
-        resource_id = 'all/facets'
+    if resource_id == 'all/facets':
         selected_filter.update({
             "authoring_organizations": organizations,
             "seat_types": seat_types,
             "program_types": program_types,
         })
-    elif resource_id == 'course':
-        resource_id = 'course_runs/facets'
+    elif resource_id == 'course_runs/facets':
         selected_filter.update({
             "seat_types": seat_types,
             "org": organizations,
             "program_types": program_types,
         })
-    elif resource_id == 'program':
-        resource_id = 'programs/facets'
+    elif resource_id == 'programs/facets':
         selected_filter.update({
             "program_types": program_types,
             "authoring_organizations": organizations,
         })
-    return selected_filter, resource_id
+    return selected_filter
 
 
 def update_facets(res_facets, facets_template):
@@ -477,6 +475,30 @@ def update_facets(res_facets, facets_template):
             dict.update({line['text']: line['count']})
         facets_template[key].update(dict)
     return facets_template
+
+
+def get_discovery_results(request, resource_id, querystring, catalog_integration, api):
+    lst_results = []
+    lst_resources = [resource_id]
+    if resource_id == 'all/facets':
+        lst_resources = ['course_runs/facets', 'programs/facets']
+    for res in lst_resources:
+        selected_filter = {}
+        selected_filter = _get_selected_filter(request, res)
+        selected_filter.update(querystring)
+        source = {}
+        response = get_edx_api_data(
+            catalog_integration, 
+            'search', 
+            api=api, 
+            resource_id=res,
+            querystring=selected_filter,
+            traverse_pagination=False
+        )
+        if response != []:
+            source[res] = response
+            lst_results.append(source)
+    return lst_results
 
 
 @require_POST
@@ -499,7 +521,8 @@ def discovery(request):
     FACET_TEMPLATE = copy.deepcopy(dict(get_discovery_facet()))
     DATA_RESPONSE = {
         "facets": FACET_TEMPLATE,
-        "results": [],
+        "program_results": [],
+        "course_results": [],
         "course_count": 0,
         "program_count": 0,
     }
@@ -508,32 +531,32 @@ def discovery(request):
         page += 1
         catalog_integration, username, api = get_catalog_integration_api(request)
         search_term = request.POST.get("search_string", None)
+        resource_id = request.POST.get('resource_id', 'all/facets')
+        if resource_id not in ['all/facets', 'programs/facets', 'course_runs/facets']:
+             return HttpResponse(
+                json.dumps({}, cls=DjangoJSONEncoder),
+                content_type='application/json',
+                status=404
+            )
         querystring = {
             "page": page,
             "page_size": size,
             "q": search_term,
         }
-        selected_filter, resource_id = _get_selected_filter(request)
+        lst_results = get_discovery_results(request, resource_id, querystring, catalog_integration, api)
+        selected_filter = _get_selected_filter(request)
         querystring.update(selected_filter)
-        response = get_edx_api_data(
-            catalog_integration, 
-            'search', 
-            api=api, 
-            resource_id=resource_id,
-            querystring=querystring,
-            traverse_pagination=False
-        )
-        if response != []:
-            course_total = program_total = 0
-            results = response['objects']['results']
-            fields = response['fields']
+        DATA_RESPONSE['facets'] = facets(request, selected_filter=selected_filter, resource_id=resource_id)
+        for res in lst_results:
+            resource_id = list(res.keys())[0]
+            results = res[resource_id]['objects']['results']
+            count = res[resource_id]['objects']['count']
             for result in results:
                 record = copy.deepcopy(dict(result))
                 temp = copy.deepcopy(RESULT_TEMPLATE)
                 temp['title'] = record['title']
                 temp['content_type'] = record['content_type']
                 if record['content_type'] == 'program':
-                    program_total += 1
                     temp['id'] = record['uuid']
                     temp['image_url'] = record['card_image_url']
                     temp['course_count'] = record['course_count']
@@ -541,17 +564,17 @@ def discovery(request):
                     if record['authoring_organizations']:
                         temp['org'] = [org['name'] for org in record['authoring_organizations']]
                 if record['content_type'] == 'courserun':
-                    course_total += 1
                     temp['id'] = record['key']
                     temp['image_url'] = record['image_url']
                     temp['org'] = record['org']
                     temp['start'] = record['start']
                     temp['number'] = record['number']
-                DATA_RESPONSE['results'].append(temp)
-            if fields:
-                update_facets(fields, FACET_TEMPLATE)
-            DATA_RESPONSE['course_count'] = course_total
-            DATA_RESPONSE['program_count'] = program_total
+                if resource_id == 'course_runs/facets':
+                    DATA_RESPONSE['course_results'].append(temp)
+                    DATA_RESPONSE['course_count'] = count
+                if resource_id == 'programs/facets':
+                    DATA_RESPONSE['program_results'].append(temp)
+                    DATA_RESPONSE['program_count'] = count
 
     except User.DoesNotExist:
         log.exception(
@@ -564,23 +587,30 @@ def discovery(request):
     )
 
 
-def facets(request):
+def facets(request, **kwargs):
+    selected_filter = kwargs.get('selected_filter', False)
+    resource_id = kwargs.get('resource_id', False)
     FACET_TEMPLATE = copy.deepcopy(dict(get_discovery_facet()))
+    if not resource_id:
+        resource_id = 'all/facets'
     try:
         catalog_integration, username, api = get_catalog_integration_api(request)
         response = get_edx_api_data(
             catalog_integration, 
             'search', 
             api=api,
-            resource_id="all/facets",
+            resource_id=resource_id,
+            querystring=selected_filter,
             traverse_pagination=False
         )
-        if response != []:
-           update_facets(response['fields'], FACET_TEMPLATE)
     except User.DoesNotExist:
         log.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
         )
+    if response != []:
+        data_facets = update_facets(response['fields'], FACET_TEMPLATE)
+    if selected_filter:
+        return data_facets
     return HttpResponse(
         json.dumps(FACET_TEMPLATE, cls=DjangoJSONEncoder),
         content_type='application/json',
