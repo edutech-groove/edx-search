@@ -470,9 +470,13 @@ def _get_selected_filter(request, resource_id=False):
 def update_facets(res_facets, facets_template):
     for key, value in facets_template.items():
         dict = {}
-        data = res_facets.get(key, [])
-        for line in data:
-            dict.update({line['text']: line['count']})
+        data_facets = res_facets.get(key, [])
+        temp_facets = facets_template.get(key)
+        for line in data_facets:
+            if temp_facets.get(line['text']):
+                dict.update({line['text']: line['count'] + temp_facets[line['text']]})
+            else:
+                dict.update({line['text']: line['count']})
         facets_template[key].update(dict)
     return facets_template
 
@@ -483,6 +487,8 @@ def get_discovery_results(request, resource_id, querystring, catalog_integration
     if resource_id == 'all/facets':
         lst_resources = ['course_runs/facets', 'programs/facets']
     for res in lst_resources:
+        if res == 'programs/facets' and resource_id == 'all/facets':
+            querystring.update({'page_size': 4})
         selected_filter = {}
         selected_filter = _get_selected_filter(request, res)
         selected_filter.update(querystring)
@@ -533,11 +539,7 @@ def discovery(request):
         search_term = request.POST.get("search_string", None)
         resource_id = request.POST.get('resource_id', 'all/facets')
         if resource_id not in ['all/facets', 'programs/facets', 'course_runs/facets']:
-             return HttpResponse(
-                json.dumps({}, cls=DjangoJSONEncoder),
-                content_type='application/json',
-                status=404
-            )
+             return HttpResponse({}, status=404)
         querystring = {
             "page": page,
             "page_size": size,
@@ -546,7 +548,6 @@ def discovery(request):
         lst_results = get_discovery_results(request, resource_id, querystring, catalog_integration, api)
         selected_filter = _get_selected_filter(request)
         querystring.update(selected_filter)
-        DATA_RESPONSE['facets'] = facets(request, selected_filter=selected_filter, resource_id=resource_id)
         for res in lst_results:
             resource_id = list(res.keys())[0]
             results = res[resource_id]['objects']['results']
@@ -575,6 +576,7 @@ def discovery(request):
                 if resource_id == 'programs/facets':
                     DATA_RESPONSE['program_results'].append(temp)
                     DATA_RESPONSE['program_count'] = count
+            DATA_RESPONSE['facets'] = update_facets(res[resource_id]['fields'], FACET_TEMPLATE)
 
     except User.DoesNotExist:
         log.exception(
@@ -587,30 +589,23 @@ def discovery(request):
     )
 
 
-def facets(request, **kwargs):
-    selected_filter = kwargs.get('selected_filter', False)
-    resource_id = kwargs.get('resource_id', False)
+def facets(request):
     FACET_TEMPLATE = copy.deepcopy(dict(get_discovery_facet()))
-    if not resource_id:
-        resource_id = 'all/facets'
     try:
         catalog_integration, username, api = get_catalog_integration_api(request)
         response = get_edx_api_data(
             catalog_integration, 
             'search', 
             api=api,
-            resource_id=resource_id,
-            querystring=selected_filter,
+            resource_id="all/facets",
             traverse_pagination=False
         )
+        if response != []:
+            update_facets(response['fields'], FACET_TEMPLATE)
     except User.DoesNotExist:
         log.exception(
             'Failed to create API client. Service user {username} does not exist.'.format(username=username)
         )
-    if response != []:
-        data_facets = update_facets(response['fields'], FACET_TEMPLATE)
-    if selected_filter:
-        return data_facets
     return HttpResponse(
         json.dumps(FACET_TEMPLATE, cls=DjangoJSONEncoder),
         content_type='application/json',
