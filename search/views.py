@@ -440,30 +440,31 @@ def program_discovery(request):
     )
 
 
-def _get_selected_filter(request, resource_id=False):
+def _get_selected_filter(request, resource_id=None):
     selected_filter = {}
     if not resource_id:
-        resource_id = request.POST.get('resource_id', 'all/facets')
+        resource_id = request.POST.get('resource_id', 'all')
     program_types = request.POST.getlist('program_types[]', [])
     seat_types = request.POST.getlist('seat_types[]', [])
     organizations = request.POST.getlist('organizations[]', [])
-    if resource_id == 'all/facets':
+    if resource_id == 'all':
         selected_filter.update({
             "authoring_organizations": organizations,
             "seat_types": seat_types,
             "program_types": program_types,
         })
-    elif resource_id == 'course_runs/facets':
+    elif resource_id == 'course_runs':
         selected_filter.update({
             "seat_types": seat_types,
             "org": organizations,
             "program_types": program_types,
         })
-    elif resource_id == 'programs/facets':
+    elif resource_id == 'programs':
         selected_filter.update({
             "program_types": program_types,
             "authoring_organizations": organizations,
         })
+
     return selected_filter
 
 
@@ -484,10 +485,10 @@ def update_facets(res_facets, facets_template):
 def get_discovery_results(request, resource_id, querystring, catalog_integration, api):
     lst_results = []
     lst_resources = [resource_id]
-    if resource_id == 'all/facets':
-        lst_resources = ['course_runs/facets', 'programs/facets']
+    if resource_id == 'all':
+        lst_resources = ['course_runs', 'programs']
     for res in lst_resources:
-        if res == 'programs/facets' and resource_id == 'all/facets':
+        if res == 'programs' and resource_id == 'all':
             querystring.update({'page_size': 4})
         selected_filter = {}
         selected_filter = _get_selected_filter(request, res)
@@ -497,13 +498,14 @@ def get_discovery_results(request, resource_id, querystring, catalog_integration
             catalog_integration, 
             'search', 
             api=api, 
-            resource_id=res,
+            resource_id=res + '/facets',
             querystring=selected_filter,
             traverse_pagination=False
         )
         if response != []:
             source[res] = response
             lst_results.append(source)
+
     return lst_results
 
 
@@ -537,8 +539,8 @@ def discovery(request):
         page += 1
         catalog_integration, username, api = get_catalog_integration_api(request)
         search_term = request.POST.get("search_string", None)
-        resource_id = request.POST.get('resource_id', 'all/facets')
-        if resource_id not in ['all/facets', 'programs/facets', 'course_runs/facets']:
+        resource_id = request.POST.get('resource_id', 'all')
+        if resource_id not in ['all', 'programs', 'course_runs']:
              return HttpResponse({}, status=404)
         querystring = {
             "page": page,
@@ -570,10 +572,10 @@ def discovery(request):
                     temp['org'] = record['org']
                     temp['start'] = record['start']
                     temp['number'] = record['number']
-                if resource_id == 'course_runs/facets':
+                if resource_id == 'course_runs':
                     DATA_RESPONSE['course_results'].append(temp)
                     DATA_RESPONSE['course_count'] = count
-                if resource_id == 'programs/facets':
+                if resource_id == 'programs':
                     DATA_RESPONSE['program_results'].append(temp)
                     DATA_RESPONSE['program_count'] = count
             DATA_RESPONSE['facets'] = update_facets(res[resource_id]['fields'], FACET_TEMPLATE)
