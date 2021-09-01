@@ -462,6 +462,7 @@ def _get_selected_filter(request, resource_id=None):
     elif resource_id == 'programs':
         selected_filter.update({
             "program_types": program_types,
+            "seat_types": seat_types,
             "authoring_organizations": organizations,
         })
 
@@ -569,7 +570,7 @@ def discovery(request):
                 if record['content_type'] == 'courserun':
                     temp['id'] = record['key']
                     temp['image_url'] = record['image_url']
-                    temp['org'] = record['org']
+                    temp['org'] = record['org_name']
                     temp['start'] = record['start']
                     temp['number'] = record['number']
                 if resource_id == 'course_runs':
