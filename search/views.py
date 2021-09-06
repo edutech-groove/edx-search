@@ -456,12 +456,13 @@ def _get_selected_filter(request, resource_id=None):
     elif resource_id == 'course_runs':
         selected_filter.update({
             "seat_types": seat_types,
-            "org": organizations,
+            "organizations": organizations,
             "program_types": program_types,
         })
     elif resource_id == 'programs':
         selected_filter.update({
             "program_types": program_types,
+            "seat_types": seat_types,
             "authoring_organizations": organizations,
         })
 
@@ -508,6 +509,10 @@ def get_discovery_results(request, resource_id, querystring, catalog_integration
 
     return lst_results
 
+
+def rewrite_org(lst_org):
+    return [ org.split(':')[1].strip() for org in lst_org ]
+   
 
 @require_POST
 def discovery(request):
@@ -569,7 +574,7 @@ def discovery(request):
                 if record['content_type'] == 'courserun':
                     temp['id'] = record['key']
                     temp['image_url'] = record['image_url']
-                    temp['org'] = record['org']
+                    temp['org'] = rewrite_org(record['organizations'])
                     temp['start'] = record['start']
                     temp['number'] = record['number']
                 if resource_id == 'course_runs':
