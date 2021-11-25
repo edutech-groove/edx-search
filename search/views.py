@@ -441,31 +441,23 @@ def program_discovery(request):
 
 
 def _get_selected_filter(request, resource_id=None):
-    selected_filter = {}
     if not resource_id:
         resource_id = request.POST.get('resource_id', 'all')
     program_types = request.POST.getlist('program_types[]', [])
     seat_types = request.POST.getlist('seat_types[]', [])
     organizations = request.POST.getlist('organizations[]', [])
-    if resource_id == 'all':
+    selected_filter = {
+        "seat_types": seat_types,
+        "program_types": program_types,
+    }
+    if resource_id in ['all', 'programs']:
         selected_filter.update({
             "authoring_organizations": organizations,
-            "seat_types": seat_types,
-            "program_types": program_types,
         })
-    elif resource_id == 'course_runs':
+    if resource_id == 'course_runs':
         selected_filter.update({
-            "seat_types": seat_types,
             "organizations": organizations,
-            "program_types": program_types,
         })
-    elif resource_id == 'programs':
-        selected_filter.update({
-            "program_types": program_types,
-            "seat_types": seat_types,
-            "authoring_organizations": organizations,
-        })
-
     return selected_filter
 
 
@@ -551,10 +543,9 @@ def discovery(request):
             "page": page,
             "page_size": size,
             "q": search_term,
+            "is_archived": "false",
         }
         lst_results = get_discovery_results(request, resource_id, querystring, catalog_integration, api)
-        selected_filter = _get_selected_filter(request)
-        querystring.update(selected_filter)
         for res in lst_results:
             resource_id = list(res.keys())[0]
             results = res[resource_id]['objects']['results']
