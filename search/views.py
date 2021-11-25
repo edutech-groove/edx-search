@@ -310,6 +310,7 @@ def auto_suggestion(request):
         search_term = request.POST.get("search_string", None)
         querystring = {
             "q": search_term,
+            "is_archived": "false",
         }
         response = get_edx_api_data(
             catalog_integration, 
@@ -596,6 +597,9 @@ def facets(request):
             'search', 
             api=api,
             resource_id="all/facets",
+            querystring={
+                "is_archived": "false",
+            },
             traverse_pagination=False
         )
         if response != []:
