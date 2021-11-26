@@ -323,10 +323,10 @@ def auto_suggestion(request):
         courses_items = programs_items = 0
         if response["results"]:
             for item in response["results"]:
-                if item["content_type"] == "course" and courses_items <= 3:
+                if item["content_type"] == "courserun" and courses_items <= 3:
                     course_temp = copy.deepcopy(record)
                     course_temp["name"] = item["title"]
-                    course_temp["url"] = item["course_runs"][0]["key"]
+                    course_temp["url"] = item["key"]
                     course_template["records"].append(course_temp)
                     courses_items += 1
 
